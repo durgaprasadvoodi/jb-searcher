@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Off-Campus Job Drives — Entry Level Job Tracker</title>
+<style>
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 24px;
+    background: #f7f7f5;
+    color: #1a1a1a;
+  }
+  h1 { font-size: 20px; font-weight: 600; margin-bottom: 4px; }
+  .subtitle { color: #666; font-size: 13px; margin-bottom: 20px; }
+  .controls {
+    display: flex; gap: 10px; align-items: center; flex-wrap: wrap;
+    margin-bottom: 16px;
+  }
+  input[type="text"] {
+    padding: 8px 10px; border: 1px solid #ddd; border-radius: 6px;
+    font-size: 14px; width: 220px;
+  }
+  label { font-size: 13px; color: #444; display: flex; align-items: center; gap: 6px; }
+  .status { font-size: 12px; color: #666; margin-bottom: 12px; }
+  table { width: 100%; border-collapse: collapse; background: white; border-radius: 8px; overflow: hidden; }
+  th, td { text-align: left; padding: 10px 12px; font-size: 13px; border-bottom: 1px solid #eee; }
+  th { background: #fafafa; font-weight: 600; color: #444; }
+  tr:hover { background: #fafafa; }
+  a { color: #2563eb; text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .badge {
+    background: #e6f4ea; color: #1e7a34; font-size: 11px;
+    padding: 3px 8px; border-radius: 10px;
+  }
+  .empty { text-align: center; padding: 40px; color: #888; }
+</style>
+</head>
+<body>
+  <h1>Off-Campus Job Drives — Entry Level Job Tracker</h1>
+  <div class="subtitle">Auto-updated daily via GitHub Actions from offcampusjobdrives.com</div>
+
+  <div class="controls">
+    <input type="text" id="search" placeholder="Search jobs...">
+    <label><input type="checkbox" id="onlyMatched" checked> Only 0-2 yr experience matches</label>
+  </div>
+  <div class="status" id="status">Loading...</div>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Job title</th>
+        <th>First seen</th>
+        <th>Experience match</th>
+        <th>Link</th>
+      </tr>
+    </thead>
+    <tbody id="jobRows"></tbody>
+  </table>
+  <div class="empty" id="emptyMsg" style="display:none;">No jobs found yet — check back after the next scheduled scrape.</div>
+
+<script>
+let allJobs = [];
+
+async function loadJobs() {
+  try {
+    // Cache-bust so browsers/CDN don't serve a stale copy of the daily-updated file
+    const res = await fetch('data/jobs.json?t=' + Date.now());
+    const data = await res.json();
+    allJobs = Object.values(data);
+    render();
+  } catch (e) {
+    document.getElementById('status').textContent = 'Could not load job data yet.';
+  }
+}
+
+function render() {
+  const search = document.getElementById('search').value.toLowerCase();
+  const onlyMatched = document.getElementById('onlyMatched').checked;
+
+  let rows = allJobs.filter(j => {
+    if (onlyMatched && !j.matched) return false;
+    if (search && !j.title.toLowerCase().includes(search) && !j.snippet.toLowerCase().includes(search)) return false;
+    return true;
+  });
+
+  rows.sort((a, b) => (b.first_seen || '').localeCompare(a.first_seen || ''));
+
+  const tbody = document.getElementById('jobRows');
+  tbody.innerHTML = '';
+  document.getElementById('emptyMsg').style.display = rows.length ? 'none' : 'block';
+
+  for (const job of rows) {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${escapeHtml(job.title)}</td>
+      <td>${escapeHtml(job.first_seen || '')}</td>
+      <td>${job.experience_match ? `<span class="badge">${escapeHtml(job.experience_match)}</span>` : ''}</td>
+      <td><a href="${job.link}" target="_blank" rel="noopener">View posting</a></td>
+    `;
+    tbody.appendChild(tr);
+  }
+
+  document.getElementById('status').textContent =
+    `Showing ${rows.length} of ${allJobs.length} total scraped job(s).`;
+}
+
+function escapeHtml(str) {
+  const div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
+}
+
+document.getElementById('search').addEventListener('input', render);
+document.getElementById('onlyMatched').addEventListener('change', render);
+
+loadJobs();
+</script>
+</body>
+</html>
